@@ -80,6 +80,7 @@ public class CloudPubSubSinkTask extends SinkTask {
   private int maxShutdownTimeoutMs;
   private boolean includeMetadata;
   private boolean includeHeaders;
+  private boolean jsonMessageBody;
   private OrderingKeySource orderingKeySource;
   private boolean enableCompression;
   private long compressionBytesThreshold;
@@ -134,6 +135,7 @@ public class CloudPubSubSinkTask extends SinkTask {
     messageBodyName = (String) validatedProps.get(CloudPubSubSinkConnector.CPS_MESSAGE_BODY_NAME);
     includeMetadata = (Boolean) validatedProps.get(CloudPubSubSinkConnector.PUBLISH_KAFKA_METADATA);
     includeHeaders = (Boolean) validatedProps.get(CloudPubSubSinkConnector.PUBLISH_KAFKA_HEADERS);
+    jsonMessageBody = (Boolean) validatedProps.get(CloudPubSubSinkConnector.JSON_MESSAGE_BODY);
     orderingKeySource =
         OrderingKeySource.getEnum(
             (String) validatedProps.get(CloudPubSubSinkConnector.ORDERING_KEY_SOURCE));
@@ -215,7 +217,17 @@ public class CloudPubSubSinkTask extends SinkTask {
     return headers;
   }
 
+  private static ByteString recordValueToJson(Schema schema, Object value) {
+    JsonConverter converter = new JsonConverter();
+    byte[] data = converter.fromConnectData(schema, value);
+    return ByteString.copyFrom(data);
+  }
+
   private ByteString handleValue(Schema schema, Object value, Map<String, String> attributes) {
+    if (jsonMessageBody) {
+      return recordValueToJson(schema, value);
+    }
+
     if (value == null) {
       return null;
     }

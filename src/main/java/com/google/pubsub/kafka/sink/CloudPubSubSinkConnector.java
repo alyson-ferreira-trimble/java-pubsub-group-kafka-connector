@@ -63,6 +63,7 @@ public class CloudPubSubSinkConnector extends SinkConnector {
   public static final String PUBLISH_KAFKA_HEADERS = "headers.publish";
   public static final String ORDERING_KEY_SOURCE = "orderingKeySource";
   public static final String DEFAULT_ORDERING_KEY_SOURCE = "none";
+  public static final String JSON_MESSAGE_BODY = "jsonMessageBody";
   public static final boolean DEFAULT_ENABLE_COMPRESSION = false;
   public static final long DEFAULT_COMPRESSION_BYTES_THRESHOLD = 240L;
 
@@ -273,7 +274,14 @@ public class CloudPubSubSinkConnector extends SinkConnector {
             Type.STRING,
             ConnectorUtils.CPS_DEFAULT_ENDPOINT,
             Importance.LOW,
-            "The Pub/Sub endpoint to use.");
+            "The Pub/Sub endpoint to use.")
+        .define(
+            JSON_MESSAGE_BODY,
+            Type.BOOLEAN,
+            false,
+            Importance.LOW,
+            "When true, incoming messages will be JSON serialized and filled in Pub/Sub "
+                + "messages bodies.");
   }
 
   @Override

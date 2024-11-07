@@ -24,11 +24,6 @@ import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
-import com.google.api.core.ApiFuture;
-import com.google.cloud.pubsub.v1.Publisher;
-import com.google.protobuf.ByteString;
-import com.google.pubsub.kafka.common.ConnectorUtils;
-import com.google.pubsub.v1.PubsubMessage;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
@@ -36,6 +31,7 @@ import java.util.Map;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.Executor;
 import java.util.concurrent.TimeUnit;
+
 import org.apache.kafka.clients.consumer.OffsetAndMetadata;
 import org.apache.kafka.common.TopicPartition;
 import org.apache.kafka.common.record.TimestampType;
@@ -47,6 +43,12 @@ import org.apache.kafka.connect.sink.SinkRecord;
 import org.junit.Before;
 import org.junit.Test;
 import org.mockito.ArgumentCaptor;
+
+import com.google.api.core.ApiFuture;
+import com.google.cloud.pubsub.v1.Publisher;
+import com.google.protobuf.ByteString;
+import com.google.pubsub.kafka.common.ConnectorUtils;
+import com.google.pubsub.v1.PubsubMessage;
 
 /** Tests for {@link CloudPubSubSinkTask}. */
 public class CloudPubSubSinkTaskTest {
@@ -294,6 +296,60 @@ public class CloudPubSubSinkTaskTest {
     verify(publisher, times(2)).publish(captor.capture());
     List<PubsubMessage> requestArgs = captor.getAllValues();
     assertEquals(requestArgs, getPubsubMessagesFromSampleRecords());
+  }
+
+  /**
+   * Tests that the correct JSON message is generated.
+   */
+  @Test
+  public void testJsonMessageBody() {
+    // given
+    Map<String, Integer> mapAttribute = new HashMap<>();
+    mapAttribute.put("some-value", 1);
+    Schema schema =  SchemaBuilder.struct()
+      .field("stringAttribute", Schema.STRING_SCHEMA)
+      .field("floatAttribute", Schema.FLOAT32_SCHEMA)
+      .field("mapAttribute", SchemaBuilder.map(Schema.STRING_SCHEMA, Schema.INT32_SCHEMA))
+      .build();
+    Struct body = new Struct(schema);
+    body.put("stringAttribute", "test-string");
+    body.put("floatAttribute", 1.25f);
+    body.put("mapAttribute", mapAttribute);
+    List<SinkRecord> records = new ArrayList<>();
+    records.add(
+        new SinkRecord(
+            "json-topic",
+            0,
+            null,
+            "someKey",
+            schema,
+            body,
+            -1));
+
+    Map<String, String> expectedAttributes = new HashMap<>();
+    expectedAttributes.put(ConnectorUtils.CPS_MESSAGE_KEY_ATTRIBUTE, "someKey");
+    ByteString expectedData = ByteString.copyFromUtf8(
+      "{\"stringAttribute\":\"test-string\",\"floatAttribute\":1.25,\"mapAttribute\":{\"some-value\":1}}"
+    );
+    PubsubMessage expectedMessage = PubsubMessage
+      .newBuilder()
+      .putAllAttributes(expectedAttributes)
+      .setData(expectedData)
+      .build();
+    List<PubsubMessage> expectedMessages = new ArrayList<>();
+    expectedMessages.add(expectedMessage);
+
+    props.put(CloudPubSubSinkConnector.JSON_MESSAGE_BODY, "true");
+
+    // when
+    task.start(props);
+    task.put(records);
+    ArgumentCaptor<PubsubMessage> captor = ArgumentCaptor.forClass(PubsubMessage.class);
+    verify(publisher, times(1)).publish(captor.capture());
+    List<PubsubMessage> resultMessages = captor.getAllValues();
+
+    // then
+    assertEquals(expectedMessages, resultMessages);
   }
 
   /** Tests that the correct message is sent to the publisher when the record has a null value. */
