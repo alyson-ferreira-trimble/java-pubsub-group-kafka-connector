@@ -1,5 +1,6 @@
 #!/bin/bash
 
+
 function main() {
     local target="$1"
 
@@ -13,7 +14,7 @@ function main() {
             snapshot
             ;;
         "build")
-            mvn clean install
+            mvn clean install -DskipNexusStagingDeployMojo -Dclirr.skip
             ;;
         "test")
             mvn_test
